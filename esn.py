@@ -54,6 +54,10 @@ class EchoStateNetwork:
 
         reward = 0
 
+        # Штраф за то, что расстояние до цели почти не изменилось
+        if abs(delta) < 0.1:
+            reward -= 20
+
         # Штраф за расстояние
         reward += delta * 100  # поощрение за приближение
         reward -= 0.01 * current_distance  # штраф за удаленность
@@ -61,7 +65,7 @@ class EchoStateNetwork:
         # Штраф за близость к препятствию
         distance_to_obstacle = np.linalg.norm(pos - nearest)
         if distance_to_obstacle < 10:
-            reward -= (10 - distance_to_obstacle) * 0.5
+            reward -= (10 - distance_to_obstacle) * 50
 
         # Бонус за достижение цели
         if current_distance < 5:
@@ -70,9 +74,8 @@ class EchoStateNetwork:
                 reward -= 30  # штраф за высокую скорость у цели
 
         robot_velocity = np.linalg.norm([vel[0], vel[1]])
-        reward += robot_velocity * 10  # Поощрение за движение
+        reward += robot_velocity * 20  # Поощрение за движение
 
-      #  return np.clip(reward, -10, 10)
         return reward
 
 
@@ -96,10 +99,11 @@ class EchoStateNetwork:
 
         error = prediction - direction
         reward = self.reward_function(input_vector)
+        scaled_reward = np.tanh(reward / 100.0)
 
         lr = 0.1
         gradient = 2 * error[:, np.newaxis] * state_with_bias
-        self.W_out -= lr * reward * gradient
+        self.W_out -= lr * scaled_reward * gradient
 
         return prediction * self.max_vel
         
