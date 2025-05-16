@@ -1,11 +1,11 @@
 import pygame, math, random
 import numpy as np
 from esn import EchoStateNetwork
-from vector_utils import norm, distance, clamp, rotate, diff
+from vector_utils import norm, distance, clamp, rotate
 
 class Robot:
     def __init__(self, pos, target, radius, color,
-                 n_reservoir=600, min_samples=400):
+                 n_reservoir=600):
         self.pos = pos
         self.target = target
         self.radius = radius
@@ -25,11 +25,8 @@ class Robot:
             leaking_rate=0.2
         )
 
-        self.train_inputs = []
-        self.train_outputs = []
-        self.min_samples = min_samples
-        
-        self.state = 0
+    def reached_target(self):
+        return distance(self.pos, self.target) < self.radius / 5
 
     def check_collision(self, a, r):
         return distance(self.pos, a) < r + self.radius
@@ -43,11 +40,17 @@ class Robot:
 
     def move(self, dt, objects):
         pos = self.pos
+
         self.pos = (self.pos[0] + dt * self.vel[0], self.pos[1] + dt * self.vel[1])
+        if distance(self.pos, self.target) < self.radius / 10:
+            self.vel = (0, 0)
+            return
+        
         self.state = 0
         if self.is_collided(objects):
             self.state = 1
             self.pos = pos
+        
 
     def is_collided(self, objects):
         for obj in objects:
@@ -58,7 +61,7 @@ class Robot:
         return False
 
     def color(self):
-        if distance(self.pos, self.target) < self.radius / 5:
+        if distance(self.pos, self.target) < self.radius / 10:
             return "Green"
         return self.initcolor
     
@@ -115,53 +118,29 @@ class Robot:
         ]).reshape(-1)
 
 
-    def train_esn(self, room, obstacles, robots, dt):
-        "Обучает ESN на основе случайного движения робота в течение `min_samples` шагов."
-        p = self.pos
-        r = self.radius
-        for _ in range(self.min_samples):
-            prev_vel = self.vel
-
-            if distance(self.pos, self.target) < self.radius / 20:
-                """ цель достигнута """
-                self.vel = (0, 0)
-            elif self.state == 1:
-                """ столкновение - меняем скорость на случайную """
-                self.vel = rotate((self.v0, 0), random.uniform(0, 2 * math.pi))
-            else:
-                self.vel = diff(self.target, self.pos) 
-
-            self.move(dt,obstacles + robots + [room])
-
-            feat = self._compute_feature(prev_vel, obstacles, robots, room)
-            self.train_inputs.append(feat)
-            self.train_outputs.append(self.vel)
-
-            l = norm(self.vel)
-            if l > self.vmax:
-                self.vel = (self.vel[0] / l * self.vmax,
-                        self.vel[1] / l * self.vmax)
-                
-        X = np.array(self.train_inputs)
-        Y = np.array(self.train_outputs)
-        self.esn.fit(X, Y, reg=1e-5)
-        # После обучения, возвращаем роботов в начало
-        self.state = 0
-        self.pos = p
-        self.radius = r
-
-
     def update(self, room, obstacles, robots):
         "Обновление скорости на основе предсказания ESN"
-        prev_vel = self.vel
 
-        if distance(self.pos, self.target) < self.radius / 20:
-            self.vel = (0.0, 0.0)
+        if distance(self.pos, self.target) < self.radius / 10:
+            self.vel = (0, 0)
             return
+
+        prev_vel = self.vel
 
         feat = self._compute_feature(prev_vel, obstacles, robots, room)
 
-        pred = self.esn.predict(feat)
+        feat_norm = np.array([
+            feat[0] / room.size[0],   # pos_x
+            feat[1] / room.size[1],   # pos_y
+            feat[2] / room.size[0],   # target_x
+            feat[3] / room.size[1],   # target_y
+            feat[4],      # v_x
+            feat[5],      # v_y
+            feat[6] / room.size[0],   # nearest_x
+            feat[7] / room.size[1],   # nearest_y
+        ])
+
+        pred = self.esn.predict(feat_norm)
         self.vel = (float(pred[0]), float(pred[1]))
 
         # ограничим по максимальной скорости

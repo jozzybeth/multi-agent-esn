@@ -20,6 +20,7 @@ def main(mission):
     screen = pygame.display.set_mode(data["size"])
     clock = pygame.time.Clock()
     dt = 1 / data["fps"]
+    font = pygame.font.SysFont('Arial', 18)
 
     room = Room(data["size"], data["colors"]["room"])
 
@@ -34,9 +35,8 @@ def main(mission):
     objects = [room] + obstacles + robots
 
     count = data['fps']
-
-    for rob in robots:
-        rob.train_esn(room, obstacles, robots, dt)
+    start_ticks = pygame.time.get_ticks()
+    goals_reached = 0
 
     while True:
         for event in pygame.event.get():
@@ -53,16 +53,28 @@ def main(mission):
         for rob in robots:
             rob.move(dt, objects)
 
+        goals_reached = sum(rob.reached_target() for rob in robots)
+        screen.fill(data["colors"]["room"]) 
+
         for obj in objects:
             obj.draw(screen)
+
+        elapsed_ms = pygame.time.get_ticks() - start_ticks
+        elapsed_sec = elapsed_ms / 1000
+
+        efficiency = goals_reached / elapsed_sec if elapsed_sec > 0 else 0
+
+        stats_text = f"Достигнуто целей: {goals_reached} | Время: {elapsed_sec:.1f} с | Эффективность: {efficiency:.3f} целей/с"
+        text_surface = font.render(stats_text, True, (0, 0, 0))
+        screen.blit(text_surface, (10, 10))
         
         count -= 1
         if count < 0:
-            count = data['fps']
+             count = data['fps']
 
         pygame.display.update()
         clock.tick(data["fps"])
 
 #main("simple")
-#main(mission_circle(20))
-main(mission_circle_hole(10))
+main(mission_circle(10))
+#main(mission_circle_hole(2))

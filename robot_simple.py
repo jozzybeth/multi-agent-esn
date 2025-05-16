@@ -13,9 +13,14 @@ class Robot:
        self.tcolor = 'Lightgrey'
        self.initcolor = color
        self.state = 0 # 0 - free, 1 - collided
+
+    def reached_target(self):
+        return distance(self.pos, self.target) < self.radius / 5
+    
     def check_collision(self, a, r):
         """ проверка столкновения с другим роботом """
         return distance(self.pos, a) < r + self.radius
+    
     def update(self, room, obstacles, robots):
         """ обновление скорости """
         if distance(self.pos, self.target) < self.radius / 20:
@@ -32,6 +37,7 @@ class Robot:
         l = norm(self.vel)
         if l > self.vmax:
             self.vel = (self.vel[0] / l * self.vmax, self.vel[1] / l * self.vmax)
+
     def move(self,  dt, objects):
         """ передвижение робота, детекция столкновения """
         pos = self.pos
@@ -41,6 +47,7 @@ class Robot:
             """ если есть столкновением с любым объектом, отменяем перемещение """
             self.state = 1
             self.pos = pos
+
     def is_collided(self, objects):
         """ проверка столкновения с объектами из списка objects """
         for obj in objects:
@@ -54,6 +61,7 @@ class Robot:
         if distance(self.pos, self.target) < self.radius / 5:
             return "Green"
         return self.initcolor
+    
     def draw(self, screen):
         r = self.radius
         x, y = self.pos[0] - r, self.pos[1] - r
